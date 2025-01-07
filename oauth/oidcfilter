@@ -1,0 +1,83 @@
+package bravura.sonata.web.life;
+
+import bravura.commons.service.ServiceException;
+import bravura.sonata.web.life.openid.OpenIdResource;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import javax.inject.Inject;
+import javax.servlet.*;
+import javax.servlet.annotation.WebFilter;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+
+@WebFilter(value = { OidcFilter.FILTER_PATH })
+public class OidcFilter implements Filter {
+  static final String CURRENT_ADVISER_PATH = "/api/life";
+  static final String FILTER_PATH = CURRENT_ADVISER_PATH + "/*";
+  @Inject
+  private OpenIdResource openIdResource;
+  @Override
+  public void init(FilterConfig filterConfig) throws ServletException {
+  }
+  @Override
+  public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
+    throws IOException, ServletException {
+    try {
+      validateAcessToken((HttpServletRequest) request, (HttpServletResponse) response, chain);
+    } catch (ServiceException e) {
+      throw new RuntimeException(e);
+    }
+  }
+  private void validateAcessToken(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+    throws IOException, ServletException, ServiceException {
+
+    String requestPath = request.getRequestURI();
+    HttpServletRequest httpRequest = (HttpServletRequest) request;
+    ArrayList<GroupMapping> groupMappingArrayList = openIdResource.getGroupMapping();
+    Map<String, String> headers = Collections.list(httpRequest.getHeaderNames())
+      .stream()
+      .collect(Collectors.toMap(h -> h, httpRequest::getHeader));
+    if(headers.containsKey("Authorization") || headers.containsKey("Authorization".toLowerCase())){
+      String[] split_string;
+      if(headers.containsKey("Authorization")){
+        split_string = headers.get("Authorization").split("\\.");
+      }else {
+        split_string = headers.get("authorization").split("\\.");
+      }
+      String base64EncodedBody = split_string[1];
+      Base64.Decoder base64Url = Base64.getUrlDecoder();
+      Map<String, Object> mapping = new ObjectMapper().readValue(base64Url.decode(base64EncodedBody), HashMap.class);
+     ArrayList<String> oktagroups = (ArrayList<String>) mapping.get("groups");
+   AtomicBoolean found = new AtomicBoolean(false);
+     oktagroups.forEach(oktaGroup->{
+       if(!found.get()){
+         groupMappingArrayList.forEach(groupMapping -> {
+           if(groupMapping.getGroupName().equals(oktaGroup) && groupMapping.getGroupUser().equals("DEFAULT")){
+             found.set(true);
+           }
+         });
+       }
+
+     });
+     if(!found.get()){
+       HttpServletResponse resp = (HttpServletResponse) response;
+       String error = "Invalid group";
+
+       resp.reset();
+       resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+       response.setContentLength(error.length());
+       response.getWriter().write(error);
+       return;
+     }
+    }
+      chain.doFilter(request, response);
+
+  }
+  @Override
+  public void destroy() {
+  }
+}
