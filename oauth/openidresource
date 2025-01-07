@@ -1,0 +1,71 @@
+package bravura.sonata.web.life.openid;
+
+import bravura.commons.service.ServiceException;
+import bravura.sonata.service.v30.common.AuthenticationService;
+import bravura.sonata.service.v30.common.user.GetGroupMappingsRequest;
+import bravura.sonata.service.v30.common.user.GetGroupMappingsResponse;
+import bravura.sonata.service.v30.life.policyservicing.GetPolicyRequest;
+
+import bravura.sonata.web.common.config.SamlConfig;
+import bravura.sonata.web.life.GroupMapping;
+import bravura.sonata.web.life.integration.konnect.KonnectMedicalPractitionerResult;
+import org.dozer.Mapper;
+
+import javax.annotation.security.RolesAllowed;
+import javax.enterprise.context.Dependent;
+import javax.inject.Inject;
+import javax.ws.rs.*;
+import javax.ws.rs.core.MediaType;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static bravura.sonata.web.life.AdviserPermissions.CLIENT_MAINTAIN_READ;
+import static bravura.sonata.web.life.AdviserPermissions.CLIENT_MAINTAIN_WRITE;
+
+@Path("/openid")
+@Dependent
+public class OpenIdResource
+{
+  @Inject
+  private SamlConfig samlConfig;
+
+  @Inject
+  private AuthenticationService authenticationService;
+
+  @Inject
+  private Mapper mapper;
+
+  @Inject
+  @ConfigProperty(name = "security.sso.oidc.debug.redirect_urls",defaultValue = "none")
+  private String devRedirectURL;
+
+  @GET
+  @Path("/configuration")
+  @Produces(MediaType.APPLICATION_JSON)
+  public OpenIdData getOpenIdConfiguration() {
+         OpenIdData openIdData = mapper.map("", OpenIdData.class);
+         openIdData.setIssuer(samlConfig.getIssuerUrl());
+    openIdData.setClientId(samlConfig.getClientId());
+    openIdData.setRedirectUri(devRedirectURL.equals("none")?samlConfig.getRedirectUrl():devRedirectURL);
+    return openIdData;
+  }
+
+  @GET
+  @Path("/group-mapping")
+  @Produces(MediaType.APPLICATION_JSON)
+  public ArrayList<GroupMapping> getGroupMapping() throws ServiceException {
+     GetGroupMappingsRequest request = mapper.map("", GetGroupMappingsRequest.class);
+    GetGroupMappingsResponse getGroupMappingsResponse = authenticationService.getGroupMappings(request);
+    ArrayList<GroupMapping> groupMappingArrayList = new ArrayList<>();
+    getGroupMappingsResponse.getGroupMappings().forEach(groupMappingType -> {
+      GroupMapping groupMapping = mapper.map("", GroupMapping.class);
+      groupMapping.setGroupName(groupMappingType.getExternalGroupName());
+      groupMapping.setGroupUser(groupMappingType.getInternalGroupUser().getName());
+      groupMappingArrayList.add(groupMapping);
+    });
+    return groupMappingArrayList;
+  }
+
+}
