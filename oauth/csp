@@ -1,0 +1,11 @@
+	@Inject
+	@ConfigProperty(name = "web.life.security.csp", defaultValue = "default-src 'none' ; "+
+    "script-src 'self' 'sha256-76b38WjaSaVRsCrn0YdE2/VO9wrmDlnYzoLAJXdCNZo=' https://*.googletagmanager.com https://*.google-analytics.com https://snap.licdn.com https://googleads.g.doubleclick.net ; "+
+    "style-src 'self' 'unsafe-inline' ; "+
+    "img-src 'self' data: https://*.google.co.in/ads/ga-audiences https://*.doubleclick.net https://*.google.com/ads/ga-audiences ; "+
+    "frame-src 'self' https://www.youtube.com https://*.doubleclick.net ; "+
+    "font-src 'self' ; "+
+    "font-src 'self' ; "+ 
+	"connect-src 'self' https://*.okta.com ;" +
+    "connect-src 'self' https://*.google-analytics.com https://*.doubleclick.net ; ")
+	private String contentSecurityPolicy;
